@@ -2,25 +2,451 @@
 <html lang="tr">
 <head>
   <meta charset="UTF-8" />
-  <title>Tam Ekran Görsel</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Siyah-Beyaz Pop-up Galeri</title>
+
   <style>
-    body{margin:0;height:100vh;display:flex;align-items:center;justify-content:center;background:#000;font-family:Arial}
-    #btn{padding:18px 36px;font-size:20px;border:0;border-radius:10px;cursor:pointer}
-    #wrap{display:none;width:100vw;height:100vh}
-    #wrap img{width:100%;height:100%;object-fit:contain;background:#000}
+    :root{
+      --bg:#000;
+      --fg:#fff;
+      --muted:#bdbdbd;
+      --panel:rgba(255,255,255,0.06);
+      --panel2:rgba(255,255,255,0.12);
+    }
+
+    *{ box-sizing:border-box; }
+
+    body{
+      margin:0;
+      height:100vh;
+      display:flex;
+      justify-content:center;
+      align-items:center;
+      background:radial-gradient(circle at 50% 40%, #111, var(--bg));
+      color:var(--fg);
+      font-family: Arial, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      overflow:hidden;
+    }
+
+    .card{
+      width:min(620px, 92vw);
+      border:1px solid rgba(255,255,255,0.15);
+      background:linear-gradient(180deg, var(--panel), rgba(0,0,0,0.55));
+      border-radius:18px;
+      padding:22px;
+      box-shadow:0 20px 60px rgba(0,0,0,0.55);
+      text-align:center;
+    }
+
+    .title{
+      font-size:20px;
+      letter-spacing:0.5px;
+      margin:0 0 10px;
+    }
+    .subtitle{
+      margin:0 0 18px;
+      color:var(--muted);
+      font-size:14px;
+      line-height:1.45;
+    }
+
+    .row{
+      display:flex;
+      gap:10px;
+      justify-content:center;
+      flex-wrap:wrap;
+    }
+
+    .btn{
+      padding:14px 22px;
+      font-size:16px;
+      cursor:pointer;
+      border-radius:12px;
+      border:1px solid rgba(255,255,255,0.18);
+      background:rgba(255,255,255,0.10);
+      color:var(--fg);
+      transition:transform .08s ease, background .15s ease, border-color .15s ease;
+      user-select:none;
+    }
+    .btn:hover{ background:rgba(255,255,255,0.16); border-color:rgba(255,255,255,0.28); }
+    .btn:active{ transform:scale(0.98); }
+
+    .btn.primary{
+      background:linear-gradient(180deg, #fff, #dcdcdc);
+      color:#000;
+      border-color:transparent;
+      font-weight:800;
+    }
+    .btn.primary:hover{ background:linear-gradient(180deg, #fff, #cfcfcf); }
+
+    /* POPUP */
+    .popup{
+      display:none;
+      position:fixed;
+      inset:0;
+      background:rgba(0,0,0,0.93);
+      justify-content:center;
+      align-items:center;
+      z-index:999;
+      padding:10px;
+    }
+
+    .frame{
+      position:relative;
+      width: min(1100px, 96vw);
+      height: min(720px, 86vh);
+      border:1px solid rgba(255,255,255,0.18);
+      border-radius:18px;
+      background:rgba(255,255,255,0.04);
+      overflow:hidden;
+      box-shadow:0 30px 90px rgba(0,0,0,0.65);
+    }
+
+    .topbar{
+      position:absolute;
+      top:0; left:0; right:0;
+      height:52px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      padding:0 14px;
+      background:linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.03));
+      border-bottom:1px solid rgba(255,255,255,0.12);
+      z-index:3;
+      backdrop-filter: blur(6px);
+    }
+
+    .badge{
+      display:flex;
+      gap:10px;
+      align-items:center;
+      font-size:13px;
+      color:var(--muted);
+    }
+
+    .dot{
+      width:8px;height:8px;border-radius:50%;
+      background:#fff;
+      box-shadow:0 0 0 2px rgba(255,255,255,0.15);
+    }
+
+    .controls{
+      display:flex;
+      gap:8px;
+      align-items:center;
+    }
+
+    .iconbtn{
+      width:40px; height:36px;
+      border-radius:10px;
+      border:1px solid rgba(255,255,255,0.16);
+      background:rgba(255,255,255,0.08);
+      color:#fff;
+      cursor:pointer;
+      display:grid;
+      place-items:center;
+      transition:background .15s ease, border-color .15s ease, transform .08s ease;
+      user-select:none;
+      font-size:16px;
+    }
+    .iconbtn:hover{ background:rgba(255,255,255,0.14); border-color:rgba(255,255,255,0.26); }
+    .iconbtn:active{ transform:scale(0.98); }
+
+    .canvas{
+      position:absolute;
+      inset:52px 0 44px 0; /* topbar + footer */
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:10px;
+      touch-action:pan-y; /* swipe için yatay algı */
+    }
+
+    /* Fade geçiş */
+    #photo{
+      max-width:100%;
+      max-height:100%;
+      object-fit:contain;
+      opacity:0;
+      transition:opacity 650ms ease;
+      filter: grayscale(100%);
+      will-change: opacity;
+      user-select:none;
+      -webkit-user-drag:none;
+    }
+    #photo.show{ opacity:1; }
+
+    /* oklar */
+    .arrow{
+      position:absolute;
+      top:50%;
+      transform:translateY(-50%);
+      font-size:54px;
+      width:64px;height:64px;
+      border-radius:16px;
+      display:grid;
+      place-items:center;
+      cursor:pointer;
+      user-select:none;
+      color:#fff;
+      background:rgba(255,255,255,0.08);
+      border:1px solid rgba(255,255,255,0.14);
+      transition:background .15s ease, transform .15s ease, border-color .15s ease;
+      z-index:2;
+    }
+    .arrow:hover{ background:rgba(255,255,255,0.14); border-color:rgba(255,255,255,0.24); }
+    .arrow:active{ transform:translateY(-50%) scale(0.98); }
+    .left{ left:12px; }
+    .right{ right:12px; }
+
+    .footer{
+      position:absolute;
+      left:0; right:0; bottom:0;
+      height:44px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:10px;
+      color:var(--muted);
+      font-size:13px;
+      background:linear-gradient(0deg, rgba(255,255,255,0.08), rgba(255,255,255,0.00));
+      border-top:1px solid rgba(255,255,255,0.10);
+      z-index:2;
+      padding:0 10px;
+      text-align:center;
+    }
+
+    .pill{
+      padding:6px 10px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,0.14);
+      background:rgba(255,255,255,0.06);
+      white-space:nowrap;
+    }
+
+    @media (max-width:520px){
+      .arrow{ width:54px;height:54px;font-size:46px; }
+      .pill{ font-size:12px; }
+    }
   </style>
 </head>
+
 <body>
-  <button id="btn" onclick="go()">Sayfayı açmak için buraya tıklayınız</button>
-  <div id="wrap">
-    <img src="vaclav-cerny-besiktas-formasiyla-5-golunu-att-19385265_amp.webp" alt="Görsel">
+  <div class="card">
+    <h1 class="title">Siyah-Beyaz Pop-up Galeri</h1>
+    <p class="subtitle">
+      “Fotoğrafları Aç”a basınca galeri açılır. <b>Sonsuz loop</b>, <b>fade</b>, otomatik slayt ve
+      🎵 arka plan müziği aktiftir. (Müzik tarayıcı kuralı gereği ilk tıklamada başlar.)
+    </p>
+
+    <div class="row">
+      <button class="btn primary" onclick="openPopup()">Fotoğrafları Aç</button>
+      <button class="btn" onclick="toggleMusic()">Müzik Aç/Kapat</button>
+    </div>
   </div>
-  <script>
-    function go(){
-      document.getElementById('btn').style.display='none';
-      document.getElementById('wrap').style.display='block';
-      if(document.documentElement.requestFullscreen) document.documentElement.requestFullscreen();
+
+  <!-- POPUP -->
+  <div class="popup" id="popup" onclick="bgClose(event)">
+    <div class="frame" role="dialog" aria-modal="true" onclick="event.stopPropagation()">
+      <div class="topbar">
+        <div class="badge">
+          <span class="dot"></span>
+          <span id="counter">1 / 1</span>
+          <span class="pill" id="status">LOOP • FADE</span>
+        </div>
+        <div class="controls">
+          <button class="iconbtn" title="Müzik Aç/Kapat" onclick="toggleMusic()">♫</button>
+          <button class="iconbtn" title="Tam Ekran" onclick="goFullscreen()">⤢</button>
+          <button class="iconbtn" title="Kapat (Esc)" onclick="closePopup()">✕</button>
+        </div>
+      </div>
+
+      <div class="canvas" id="canvas">
+        <span class="arrow left" onclick="prev()">‹</span>
+        <img id="photo" alt="Görsel"/>
+        <span class="arrow right" onclick="next()">›</span>
+      </div>
+
+      <div class="footer">
+        <span class="pill">← / →</span>
+        <span class="pill">Swipe</span>
+        <span class="pill">Space: Dur/Devam</span>
+        <span class="pill">Esc: Kapat</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Arka plan müziği -->
+  <audio id="bgm" loop preload="auto">
+    <source src="portakal-soyulur-mu.mp3" type="audio/mpeg">
+  </audio>
+
+<script>
+  // ✅ FOTOĞRAF LİSTESİ — burada ne yazıyorsa repo'da o isimler bire bir olmalı
+  // İstersen foto1.jpg..foto8.jpg yap (önerilen)
+  const photos = [
+    "foto1.jpg",
+    "foto2.jpg",
+    "foto3.jpg",
+    "foto4.jpg",
+    "foto5.jpg",
+    "foto6.jpg",
+    "foto7.jpg",
+    "foto8.jpg"
+  ];
+
+  // ✅ Ayarlar
+  const AUTO_MS = 3000;     // otomatik geçiş süresi
+  const FADE_MS = 650;      // CSS ile uyumlu (opacity transition)
+  const MUSIC_TARGET_VOL = 0.60; // max ses (0.0 - 1.0)
+  const MUSIC_FADE_STEP = 0.02;
+  const MUSIC_FADE_INTERVAL = 120;
+
+  let index = 0;
+  let autoTimer = null;
+  let autoplay = true;
+
+  const popup = document.getElementById("popup");
+  const img = document.getElementById("photo");
+  const counter = document.getElementById("counter");
+  const bgm = document.getElementById("bgm");
+  const canvas = document.getElementById("canvas");
+
+  function setCounter(){
+    counter.textContent = `${index + 1} / ${photos.length}`;
+  }
+
+  function showPhoto(i){
+    if (!photos.length) return;
+
+    index = (i + photos.length) % photos.length; // ✅ sonsuz loop
+    setCounter();
+
+    img.classList.remove("show");
+    setTimeout(() => {
+      img.src = photos[index];
+      img.onload = () => img.classList.add("show");
+    }, 80);
+  }
+
+  function startAuto(){
+    stopAuto();
+    if (!autoplay) return;
+    autoTimer = setInterval(() => next(true), AUTO_MS);
+  }
+
+  function stopAuto(){
+    if (autoTimer) { clearInterval(autoTimer); autoTimer = null; }
+  }
+
+  function openPopup(){
+    popup.style.display = "flex";
+    showPhoto(index);
+    autoplay = true;
+    startAuto();
+    goFullscreen();
+    playMusicSafe(true); // ✅ ilk tıklamada müzik + fade-in
+  }
+
+  function closePopup(){
+    popup.style.display = "none";
+    stopAuto();
+    stopMusic();
+  }
+
+  function bgClose(e){
+    closePopup();
+  }
+
+  function next(fromAuto=false){
+    showPhoto(index + 1);
+  }
+
+  function prev(){
+    showPhoto(index - 1);
+  }
+
+  function goFullscreen(){
+    const el = document.documentElement;
+    if (el.requestFullscreen) el.requestFullscreen().catch(()=>{});
+  }
+
+  function stopMusic(){
+    try{
+      bgm.pause();
+      bgm.currentTime = 0;
+    }catch(_){}
+  }
+
+  function playMusicSafe(withFade){
+    bgm.volume = withFade ? 0 : MUSIC_TARGET_VOL;
+
+    bgm.play().then(() => {
+      if (withFade) fadeInMusic();
+    }).catch(()=>{});
+  }
+
+  function fadeInMusic(){
+    let v = bgm.volume || 0;
+    const t = setInterval(() => {
+      v = Math.min(v + MUSIC_FADE_STEP, MUSIC_TARGET_VOL);
+      bgm.volume = v;
+      if (v >= MUSIC_TARGET_VOL) clearInterval(t);
+    }, MUSIC_FADE_INTERVAL);
+  }
+
+  function toggleMusic(){
+    if (bgm.paused) playMusicSafe(false);
+    else bgm.pause();
+  }
+
+  // Klavye kontrolleri
+  document.addEventListener("keydown", (e) => {
+    if (popup.style.display !== "flex") return;
+
+    if (e.key === "Escape") closePopup();
+    if (e.key === "ArrowRight") next();
+    if (e.key === "ArrowLeft") prev();
+
+    // Space: otomatik geçiş dur/başlat
+    if (e.key === " "){
+      e.preventDefault();
+      autoplay = !autoplay;
+      if (autoplay) startAuto();
+      else stopAuto();
     }
-  </script>
+  });
+
+  // Mobil swipe (kaydırma)
+  let startX = null;
+  let startY = null;
+
+  canvas.addEventListener("touchstart", (e) => {
+    const t = e.touches[0];
+    startX = t.clientX;
+    startY = t.clientY;
+  }, {passive:true});
+
+  canvas.addEventListener("touchend", (e) => {
+    if (startX === null || startY === null) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - startX;
+    const dy = t.clientY - startY;
+
+    // yatay kaydırma daha baskınsa
+    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)){
+      if (dx < 0) next();
+      else prev();
+    }
+
+    startX = null;
+    startY = null;
+  }, {passive:true});
+
+  // İlk yüklemede (popup kapalıyken) hazırlık
+  if (photos.length){
+    img.src = photos[0];
+  }
+</script>
 </body>
 </html>
